@@ -1,102 +1,98 @@
 import streamlit as st
 import pandas as pd
+import Google.generativeai as genai
 
-# 1. 페이지 기본 설정
+# 1. 페이지 설정 및 테마
 st.set_page_config(
-    page_title="공부 & 대입 정보 포털",
+    page_title="스마트 고교 생활 & 대입 매니저",
     page_icon="🎓",
-    layout="centered"
+    layout="wide"
 )
 
-# 2. 사이드바 내비게이션
-st.sidebar.title("📱 메뉴 선택")
-page = st.sidebar.radio(
-    "이동할 페이지를 선택하세요:", 
-    [
-        "1페이지: 공부 상담소 💬", 
-        "2페이지: 학습 스케줄러 📅", 
-        "3페이지: 오답 노트 📝",
-        "4페이지: 대입 & 학교 정보 🏛️"
-    ]
-)
+# 2. 고유한 스타일 적용 (CSS)
+st.markdown("""
+    <style>
+    .main-title { font-size: 2.5rem; font-weight: bold; color: #1E3A8A; margin-bottom: 20px; }
+    .sub-title { font-size: 1.2rem; color: #4B5563; margin-bottom: 30px; }
+    .stTabs [data-baseweb="tab"] { font-size: 1.1rem; font-weight: 600; }
+    </style>
+""", unsafe_allow_html=True)
 
-# --- [ 1페이지: 공부 상담소 ] ---
-if page == "1페이지: 공부 상담소 💬":
-    st.title("📚 나만의 AI 공부 상담소")
-    st.write("학업 스트레스, 성적 고민, 공부 방법 등 무엇이든 적어주세요.")
-    st.markdown("---")
+# 3. 사이드바 - 학생 정보 및 API 설정
+st.sidebar.title("🎓 학생 프로필 설정")
+st.sidebar.markdown("---")
+
+# 학년 및 진로 설정
+grade = st.sidebar.selectbox("학년", ["1학년", "2학년", "3학년"])
+major_focus = st.sidebar.selectbox("관심 계열", ["인문계열", "사회계열", "자연계열", "공학계열", "의학계열", "예체능계열"])
+desired_admission = st.sidebar.selectbox("희망 대입 전형", ["학생부종합", "학생부교과", "정시(수능)", "논술"])
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("💡 **AI 컨설팅 기능**을 사용하려면 Streamlit Secrets에 `GEMINI_API_KEY`를 등록하거나 아래에 입력하세요.")
+
+# Secrets 또는 사이드바 직접 입력에서 API 키 로드
+api_key = ""
+if "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"]
+else:
+    api_key = st.sidebar.text_input("Gemini API Key 입력", type="password")
+
+# API 키 인증 상태 표시
+if api_key:
+    st.sidebar.success("🔑 API 키가 연결되었습니다.")
+    genai.configure(api_key=api_key)
+else:
+    st.sidebar.warning("⚠️ AI 기능을 쓰려면 API 키가 필요합니다.")
+
+# 메인 화면 타이틀
+st.markdown('<p class="main-title">🎓 스마트 고교 생활 & 대입 매니저</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-title">나의 주간 시간표를 관리하고 최신 대입 정보와 AI 맞춤형 전략을 받아보세요.</p>', unsafe_allow_html=True)
+
+# 4. 메인 기능 탭 구성
+tab1, tab2, tab3 = st.tabs(["📅 나의 시간표", "🎓 대입 핵심 정보", "🤖 AI 대입 전략 컨설턴트"])
+
+# ----------------------------------------------------
+# 탭 1: 나의 시간표 관리
+# ----------------------------------------------------
+with tab1:
+    st.header("📅 주간 시간표 관리")
+    st.write("나의 일주일 시간표를 확인하고 필요에 따라 수정해보세요.")
     
-    st.subheader("🔍 나의 고민 접수하기")
-    subject = st.selectbox(
-        "어떤 과목이 가장 고민이신가요?",
-        ["국어", "수학", "영어", "탐구(상경/자연)", "기타/전반적인 공부 습관"]
-    )
+    # 기본 시간표 데이터 생성
+    default_timetable = {
+        "교시": [f"{i}교시" for i in range(1, 8)],
+        "월요일": ["국어", "수학", "영어", "사회", "과학", "체육", "자율"],
+        "화요일": ["수학", "과학", "국어", "영어", "역사", "음악", "동아리"],
+        "수요일": ["영어", "국어", "수학", "진로", "사회", "정보기술", "보충"],
+        "목요일": ["과학", "사회", "수학", "국어", "영어", "미술", "자치"],
+        "금요일": ["국어", "영어", "과학", "사회", "수학", "체육", "종합"]
+    }
+    df_default = pd.DataFrame(default_timetable)
     
-    current_level = st.select_slider(
-        "현재 본인의 대략적인 성적 위치를 선택해주세요.",
-        options=["기초 부족", "중하위권", "중위권", "상위권", "최상위권"]
-    )
-    
-    user_concern = st.text_area(
-        "구체적인 고민을 적어주세요.",
-        placeholder="예: 수학 문제 풀 때 시간이 너무 부족해요..."
-    )
-    
-    if st.button("🚀 맞춤형 상담 받기"):
-        if user_concern.strip() == "":
-            st.warning("⚠️ 구체적인 고민 내용을 입력해주셔야 정확한 상담이 가능해요!")
-        else:
-            with st.spinner("당신의 고민을 분석 중입니다..."):
-                st.success("🎉 상담 분석이 완료되었습니다!")
-                st.markdown("### 💡 추천 학습 솔루션")
-                st.write(f"**📍 분석 대상 과목:** {subject} ({current_level} 수준)")
-                st.info(f"**🤔 작성하신 고민:** {user_concern}")
-                
-                st.markdown("---")
-                st.markdown("#### 🛠️ 행동 가이드라인")
-                if current_level in ["기초 부족", "중하위권"]:
-                    st.write("1. **개념 위주의 학습:** 교과서나 기본서의 개념을 완벽히 이해하는 것이 먼저입니다.")
-                    st.write("2. **작은 목표 설정:** 하루에 핵심 개념 2개씩 확실하게 마스터해보세요.")
-                else:
-                    st.write("1. **취약 유형 분석:** 오답 노트를 활용해 자주 틀리는 패턴을 집중 공략하세요.")
-                    st.write("2. **실전 감각 기르기:** 타이머를 맞춰두고 실제 시험처럼 시간을 배분하세요.")
-
-# --- [ 2페이지: 학습 스케줄러 ] ---
-elif page == "2페이지: 학습 스케줄러 📅":
-    st.title("📅 2페이지: 학습 스케줄러")
-    st.info("🚧 이 페이지는 현재 준비 중입니다.")
-
-# --- [ 3페이지: 오답 노트 ] ---
-elif page == "3페이지: 오답 노트 📝":
-    st.title("📝 3페이지: 오답 노트")
-    st.info("🚧 이 페이지는 현재 준비 중입니다.")
-
-# --- [ 4페이지: 대입 & 학교 정보 ] ---
-elif page == "4페이지: 대입 & 학교 정보 🏛️":
-    st.title("🏛️ 4페이지: 대입 및 고등학교 정보 포털")
-    st.write("대학 입시 전형 분석부터 우리 지역 고등학교 내신 통계, 시간표까지 확인하세요.")
-    st.markdown("---")
-
-    tab1, tab2, tab3 = st.tabs(["🎯 대입 전형 & 합격 컷", "📊 학교별 과목 평균/내신", "📅 우리 학교 시간표"])
-
-    # 탭 1: 대입 전형
-    with tab1:
-        st.subheader("🔑 주요 대학 입시 전형 요약 및 가이드")
-        univ_category = st.selectbox(
-            "관심 있는 대학 그룹을 선택하세요:",
-            ["최상위권 대학 (서연고/서성한)", "주요 수도권 대학", "지역 거점 국립대학"]
-        )
+    # 세션 상태를 활용해 시간표 저장 및 편집 가능하게 구현
+    if "timetable" not in st.session_state:
+        st.session_state.timetable = df_default
         
-        if univ_category == "최상위권 대학 (서연고/서성한)":
+    # 데이터 편집기 활용 (오류 없는 직관적 수정 가능)
+    edited_df = st.data_editor(
+        st.session_state.timetable, 
+        use_container_width=True, 
+        num_rows="fixed"
+    )
+    st.session_state.timetable = edited_df
+    st.success("✨ 시간표는 브라우저 세션에 실시간으로 반영됩니다.")
+
+# ----------------------------------------------------
+# 탭 2: 대입 핵심 정보 열람
+# ----------------------------------------------------
+with tab2:
+    st.header("🎓 주요 대입 전형 핵심 요약")
+    st.write("목표하는 전형의 핵심 포인트와 준비 전략을 확인하세요.")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        with st.expander("📝 1. 학생부교과전형 (내신 중심)", expanded=True):
             st.markdown("""
-            | 전형 종류 | 주요 평가 요소 | 권장 내신/수능 등급 컷 | 핵심 팁 |
-            | :--- | :--- | :--- | :--- |
-            | **학생부교과** | 학생부 교과 100% + 최저학력기준 | 1.0 ~ 1.4 등급 | 높은 수능 최저학력기준 충족이 당락을 결정함 |
-            | **학생부종합** | 서류(생기부) + 면접 | 1.3 ~ 2.2 등급 | 전공 적합성보다 학업 역량과 탐구 활동 중요 |
-            | **정시 (수능)** | 수능 성적 100% | 백분위 평균 95% 이상 | 국어/수학 반영 비중이 매우 높음 |
-            """)
-        elif univ_category == "주요 수도권 대학":
-            st.markdown("""
-            | 전형 종류 | 주요 평가 요소 | 권장 내신/수능 등급 컷 | 핵심 팁 |
-            | :--- | :--- | :--- | :--- |
-            | **학생부교과
+            * **핵심 요소:** 정량평가된 학교 생활기록부 교과 성적 (내신)
+            * **주요 특징
